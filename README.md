@@ -1,12 +1,12 @@
-# Service Insight(old carddeck)
+# Insight Analytic(old carddeck)
 
-## Module: insightful
+## Module: Diagnostic
 
 ## Sub-modules
 
 ### data_interface
 
-Reading U,C,I objects from rethinkdb, possibly also write to rethink-api database
+Reading interactions objects from spark parquet, possibly also write to rethink-api database
 
 ### calculation
 
