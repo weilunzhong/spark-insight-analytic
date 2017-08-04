@@ -2,6 +2,8 @@ from diagnostic.data_interface.input_data import SparkParquetIO
 from diagnostic.calculation.utils import *
 from pyspark.sql import functions as func
 from datetime import datetime
+from itertools import groupby as gb
+from functional import seq
 
 
 __all__ = [
@@ -9,18 +11,11 @@ __all__ = [
     'avg_user_view_count', 'avg_finished_program_by_user',
     'avg_completion_ratio', 'action_type_view_count',
     'user_hibernation', 'new_user', 'top_programs_by_view_count',
-    'top_genre_by_view_count', 'top_channel_by_view_count'
+    'top_genre_by_view_count', 'top_tag_by_view_count',
+    'view_count_by_hour_of_day', 'view_count_by_day_of_week',
+    'top_tag_by_viewing_time', 'user_by_complete_views',
+    'user_by_viewtime'
 ]
-
-def ucis_completion_ratio(ucis):
-    return len([x for x in ucis if finished(x['duration'], x['runtime'])]) / float(len(ucis))
-
-def duration_mapper(duration):
-    return "{0} hours".format(str(duration / 3600))
-
-def finished(duration, runtime):
-    # NOTE completion is defined as 90% finished
-    return duration > 0.9 * runtime
 
 def view_count(df):
     return df.count()
@@ -60,32 +55,107 @@ def avg_completion_ratio(df):
         .count()
     return float_devision(completion_titles, titles_with_runtime)
 
-def top_channel_by_view_count(df, row_limit=10):
-    top_channel = df\
-        .select('channelID')\
-        .groupBy('channelID')\
+def user_by_complete_views(df):
+    hist = df\
+        .filter(df.runtime.isNotNull())\
+        .filter(finished(df.duration, df.runtime))\
+        .groupBy('userID')\
+        .count()\
+        .select(func.col('count').alias('userViews'))\
+        .groupBy('userViews')\
+        .count()\
+        .collect()
+    program_count_hist = [(program_count_mapper(x['userViews']), x['count']) for x in hist]
+    res = seq(program_count_hist)\
+        .group_by(lambda(category, count): category)\
+        .map(lambda (category, count_list): (category, sum([x[1] for x in count_list])))\
+        .order_by(lambda (category, count): category)\
+        .map(lambda(category, count):
+            {"category": counter_mapper_doc[category], "count": count}
+        )\
+        .to_list()
+    return res
+
+def user_by_viewtime(df, interval):
+    # NOTE that interval must be send to ensure the mapper works
+    hist = df\
+        .groupBy('userID')\
+        .agg(func.sum('duration'))\
+        .select(func.col('sum(duration)').alias('viewtime'))\
+        .collect()
+    user_viewtime = seq([x['viewtime'] / interval for x in hist])\
+        .map(lambda x: viewtime_mapper(x))\
+        .group_by(lambda x: x)\
+        .map(lambda (category, users): (category, len(users)))\
+        .order_by(lambda (category, count): category)\
+        .map(lambda (category, count):
+                {"category": viewtime_mapper_doc[category], "count": count}
+        )\
+        .to_list()
+    return user_viewtime
+
+
+def top_tag_by_view_count(df, tag_name, row_limit=10):
+    top_tag = df\
+        .select(tag_name)\
+        .groupBy(tag_name)\
         .count()\
         .orderBy(func.desc('count'))\
         .limit(row_limit)\
         .rdd\
         .collect()
-    top_channel = [
-        {"channelID": x['channelID'], "count": x['count']}
-        for x in top_channel]
-    return top_channel
+    top_tag = [
+        {tag_name: x[tag_name], "count": x['count']}
+        for x in top_tag]
+    return top_tag
 
-def top_channel_by_viewing_time(df, row_limit):
-    top_channel = df\
-        .select('channelName', 'duration')\
-        .groupBy('channelName')\
+def top_tag_by_viewing_time(df, tag_name, row_limit=10):
+    top_tag = df\
+        .select(tag_name, 'duration')\
+        .groupBy(tag_name)\
         .agg(func.sum('duration'))\
         .sort(func.desc('sum(duration)'))\
         .limit(row_limit)\
         .rdd.collect()
+    top_tag = [
+        {tag_name: x[tag_name], "viewtime": x['sum(duration)']}
+        for x in top_tag]
+    return top_tag
+
+def top_tag_by_completion_ratio(df, tag_name, row_limit=10):
+    tag_by_views = df\
+        .filter(df.runtime.isNotNull())\
+        .groupBy(tag_name)\
+        .count()\
+        .rdd\
+        .collectAsMap()
+    tag_by_finished_views = df\
+        .filter(df.runtime.isNotNull())\
+        .filter(finished(df.duration, df.runtime))\
+        .groupBy(tag_name)\
+        .count()\
+        .collect()
+    res = [
+        {
+            tag_name: x[tag_name],
+            'contentCompletion': float(x['count']) / tag_by_views[x[tag_name]]
+        } for x in tag_by_finished_views
+    ]
+    return sorted(res, key=lambda x: x['contentCompletion'], reverse=True)[:row_limit]
+
+def top_channel_by_user_viewtime(df, row_limit=10):
+    top_channel = df\
+        .groupBy('userID', 'channelID')\
+        .sum('duration')\
+        .groupBy('channelID')\
+        .avg('sum(duration)')\
+        .sort(func.desc('avg(sum(duration))'))\
+        .rdd.collect()
     top_channel = [
-        {"channelName": x['channelName'], "viewingTime": x['sum(duration)']}
+        {"channelID": x['channelID'], "viewingTime": x['avg(sum(duration))']}
         for x in top_channel]
     return top_channel
+
 
 def top_genre_by_view_count(df, row_limit=10):
     top_genre = df\
@@ -131,52 +201,41 @@ def action_type_view_count(df):
 
 def view_count_by_hour_of_day(df):
     hour_of_day = df\
-        .rdd\
-        .groupBy(lambda x: x['firstEvent'].hour)\
-        .map(lambda (hour, ucis): (hour, len(ucis)))\
-        .sortBy(lambda(hour, count): hour)\
+        .groupBy(func.hour('firstEvent').alias('hour'))\
+        .count()\
+        .sort('hour')\
         .collect()
-    print hour_of_day
+    hourly_bucket = [{'hour':x, 'count': 0} for x in range(24)]
+    for d in hour_of_day:
+        hourly_bucket[d['hour']]['count'] = d['count']
+    return hourly_bucket
 
 def view_count_by_day_of_week(df):
-    hour_of_day = df.rdd\
-        .groupBy(lambda x: x['firstEvent'].weekday())\
-        .map(lambda (weekday, ucis): (weekday, len(ucis)))\
-        .sortBy(lambda(weekday, count):weekday)\
+    day_of_week = df\
+        .groupBy(func.date_format('firstEvent', 'E').alias('weekday'))\
+        .count()\
         .collect()
-    print hour_of_day
-
-
-def channel_trigger(df):
-    channels = df\
-        .where(df.actionType.isin(['tvod', 'svod']))\
-        .select('channelName')\
-        .distinct()\
-        .rdd\
-        .map(lambda x: x['channelName'])\
-        .collect()
-    print channels
-    # for c in channels:
-    #     print  c
-    #     channel_df = df.filter(df.channelName==c)
-    #     # print top_programs_by_view_count(channel_df)
-    #     top_genre_by_view_count(channel_df)
+    week_bucket = {x: 0 for x in WEEKDAYS}
+    for d in day_of_week:
+        week_bucket[d['weekday']] = d['count']
+    day_of_week = [{'weekday': x, 'count': week_bucket[x]} for x in WEEKDAYS]
+    return day_of_week
 
 def user_hibernation(df, pre_df):
     # df and pre_df should have the same days of interaction in it
     users = df.select('userID').distinct().rdd.map(lambda x: x['userID']).collect()
     pre_users = pre_df.select('userID').distinct().rdd.map(lambda x: x['userID']).collect()
     # here user set operation since list comprehension is too slow
-    recurring_user = len(users) + len(pre_users) - len(set(users + pre_users))
-    return 1 - float_devision(float(recurring_user), len(pre_users))
+    missing_user = len(set(users + pre_users)) - len(users)
+    return float_devision(float(missing_user), len(pre_users))
 
 def new_user(df):
     pass
 
 
 if __name__ == '__main__':
-    d1 = datetime(2017, 4, 20)
-    d2 = datetime(2017, 4, 13)
+    from datetime import timedelta
+    timestamp = datetime(2017, 6, 13)
     spark_io = SparkParquetIO()
-    interactions = spark_io.get_daily_interactions(d1)
-    print action_type_view_count(interactions)
+    week_ucis = spark_io.get_weekly_interactions(timestamp)
+    print top_tag_by_completion_ratio(week_ucis, 'channelID')
