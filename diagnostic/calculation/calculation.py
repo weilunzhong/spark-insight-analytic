@@ -11,10 +11,10 @@ __all__ = [
     'avg_user_view_count', 'avg_finished_program_by_user',
     'avg_completion_ratio', 'action_type_view_count',
     'user_hibernation', 'new_user', 'top_programs_by_view_count',
-    'top_genre_by_view_count', 'top_tag_by_view_count',
+    'top_tag_by_view_count', 'top_tag_by_total_viewtime',
     'view_count_by_hour_of_day', 'view_count_by_day_of_week',
-    'top_tag_by_viewing_time', 'user_by_complete_views',
-    'user_by_viewtime'
+    'top_tag_by_user_viewtime', 'user_by_complete_views',
+    'user_by_viewtime', 'top_tag_by_completion_ratio'
 ]
 
 def view_count(df):
@@ -109,7 +109,7 @@ def top_tag_by_view_count(df, tag_name, row_limit=10):
         for x in top_tag]
     return top_tag
 
-def top_tag_by_viewing_time(df, tag_name, row_limit=10):
+def top_tag_by_total_viewtime(df, tag_name, row_limit=10):
     top_tag = df\
         .select(tag_name, 'duration')\
         .groupBy(tag_name)\
@@ -118,11 +118,11 @@ def top_tag_by_viewing_time(df, tag_name, row_limit=10):
         .limit(row_limit)\
         .rdd.collect()
     top_tag = [
-        {tag_name: x[tag_name], "viewtime": x['sum(duration)']}
+        {tag_name: x[tag_name], "viewtime": x['sum(duration)'] / 60}
         for x in top_tag]
     return top_tag
 
-def top_tag_by_completion_ratio(df, tag_name, row_limit=10):
+def top_tag_by_completion_ratio(df, tag_name, row_limit=10, tag_count_limit=100):
     tag_by_views = df\
         .filter(df.runtime.isNotNull())\
         .groupBy(tag_name)\
@@ -138,39 +138,24 @@ def top_tag_by_completion_ratio(df, tag_name, row_limit=10):
     res = [
         {
             tag_name: x[tag_name],
-            'contentCompletion': float(x['count']) / tag_by_views[x[tag_name]]
-        } for x in tag_by_finished_views
+            'contentCompletion': float_devision(x['count'], tag_by_views[x[tag_name]])
+        } for x in tag_by_finished_views if x['count'] > tag_count_limit
     ]
     return sorted(res, key=lambda x: x['contentCompletion'], reverse=True)[:row_limit]
 
-def top_channel_by_user_viewtime(df, row_limit=10):
+def top_tag_by_user_viewtime(df, tag_name, row_limit=10):
     top_channel = df\
-        .groupBy('userID', 'channelID')\
+        .groupBy('userID', tag_name)\
         .sum('duration')\
-        .groupBy('channelID')\
+        .groupBy(tag_name)\
         .avg('sum(duration)')\
         .sort(func.desc('avg(sum(duration))'))\
+        .limit(row_limit)\
         .rdd.collect()
     top_channel = [
-        {"channelID": x['channelID'], "viewingTime": x['avg(sum(duration))']}
+        {tag_name: x[tag_name], "viewtime": x['avg(sum(duration))'] / 60}
         for x in top_channel]
     return top_channel
-
-
-def top_genre_by_view_count(df, row_limit=10):
-    top_genre = df\
-        .select('category')\
-        .filter(df.category.isNotNull())\
-        .groupBy('category')\
-        .count()\
-        .orderBy(func.desc('count'))\
-        .limit(row_limit)\
-        .rdd\
-        .collect()
-    top_genre = [
-        {"genre": x['category'], "count": x['count']}
-        for x in top_genre]
-    return top_genre
 
 def top_programs_by_view_count(df, row_limit=10):
     top_programs = df\
@@ -238,4 +223,4 @@ if __name__ == '__main__':
     timestamp = datetime(2017, 6, 13)
     spark_io = SparkParquetIO()
     week_ucis = spark_io.get_weekly_interactions(timestamp)
-    print top_tag_by_completion_ratio(week_ucis, 'channelID')
+    print top_tag_by_user_viewtime(week_ucis, 'actionType')

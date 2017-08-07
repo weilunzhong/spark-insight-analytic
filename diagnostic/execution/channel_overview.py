@@ -25,20 +25,27 @@ def channel_overview(dt, week_ucis, channel_id):
     total_viewtime = sum([x[1] for x in channel_data])
     channel_hour_of_day = view_count_by_hour_of_day(week_ucis)
     channel_day_of_week = view_count_by_day_of_week(week_ucis)
+    weekly_active_user = user_number(week_ucis)
+    completion_ratio = avg_completion_ratio(week_ucis)
+    user_viewtime = avg_user_viewtime(week_ucis)
     res = {
         "id": channel_id,
         'channelID': channel_id,
         "datetime": dt.replace(tzinfo=pytz.UTC),
-        "viewing-time": total_viewtime,
-        "started-views": total_views,
+        "channel-total-viewing-time": total_viewtime,
+        "channel-total-started-views": total_views,
         "hour-of-day": channel_hour_of_day,
-        "day-of-week": channel_day_of_week
+        "day-of-week": channel_day_of_week,
+        "weekly-active-user": weekly_active_user,
+        "content-completion": completion_ratio,
+        "viewing-time": user_viewtime
     }
     print "#"*10
     print channel_id
     print res
     r.db('telenortv_insight_api').table('channel_overview').insert([res]).run()
     print "#"*10
+
 
 
 def channel_overview_trigger(dt):
