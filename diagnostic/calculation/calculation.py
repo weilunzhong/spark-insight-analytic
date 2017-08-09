@@ -10,11 +10,12 @@ __all__ = [
     'view_count', 'user_number', 'avg_user_viewtime',
     'avg_user_view_count', 'avg_finished_program_by_user',
     'avg_completion_ratio', 'action_type_view_count',
-    'user_hibernation', 'new_user', 'top_programs_by_view_count',
+    'user_hibernation', 'top_programs_by_view_count',
     'top_tag_by_view_count', 'top_tag_by_total_viewtime',
     'view_count_by_hour_of_day', 'view_count_by_day_of_week',
     'top_tag_by_user_viewtime', 'user_by_complete_views',
-    'user_by_viewtime', 'top_tag_by_completion_ratio'
+    'user_by_viewtime', 'top_tag_by_completion_ratio',
+    'midnight_favorite_programs'
 ]
 
 def view_count(df):
@@ -214,8 +215,23 @@ def user_hibernation(df, pre_df):
     missing_user = len(set(users + pre_users)) - len(users)
     return float_devision(float(missing_user), len(pre_users))
 
-def new_user(df):
-    pass
+def midnight_favorite_programs(df):
+    midnight_favorites = df\
+        .filter(df.title.isNotNull())\
+        .groupBy(df.title, df.channelName, func.hour('firstEvent').alias('hour'))\
+        .count()\
+        .collect()
+
+    res = seq(midnight_favorites)\
+        .filter(lambda x: x['hour'] <1 or x['hour']>21)\
+        .group_by(lambda x: x['title'])\
+        .map(lambda (title, title_buckets):
+            (title, set([x['channelName'] for x in title_buckets]),
+                sum([x['count'] for x in title_buckets])))\
+        .order_by(lambda (title, name, count): -count)\
+        .to_list()
+
+    return res[:10]
 
 
 if __name__ == '__main__':
@@ -223,4 +239,4 @@ if __name__ == '__main__':
     timestamp = datetime(2017, 6, 13)
     spark_io = SparkParquetIO()
     week_ucis = spark_io.get_weekly_interactions(timestamp)
-    print top_tag_by_user_viewtime(week_ucis, 'actionType')
+    print midnight_favorite_programs(week_ucis)

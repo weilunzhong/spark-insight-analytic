@@ -28,14 +28,30 @@ def popular_uncompleted_channels():
     table.rows = table_rows
     return table.as_dict()
 
-def run_gerne_discovery(dt):
+def unpopular_completed_channels():
+    res = r.db('telenortv_insight_api').table('channel_overview')\
+        .filter(
+            (r.row['content-completion'] > 0.55)
+        )\
+        .order_by('content-completion')\
+        .run()
+    table = Table()
+    table.title = "unpopular high completion channels"
+    table_rows = [
+        TableRow(channelID=x['channelID'], viewCount=x['channel-total-started-views'] ,completion=x['content-completion'])
+        for x in res]
+    table.rows = table_rows
+    return table.as_dict()
+
+
+def run_gerne_discovery(month_ucis):
     genres = ['Barn/ungdom', 'Dramaserie', 'Komediserie', 'Krim/thrillerserie', 'Fotboll']
     res = []
     for genre in genres:
         genre_ucis = month_ucis.filter(month_ucis.category==genre)
         genre_top_programs = top_programs_by_view_count(genre_ucis)
         table = Table()
-        table.title = "top programs for {}".format(genre)
+        table.title = "top programs for {} last month".format(genre)
         table_rows = [
             TableRow(programTitle=x['title'], channelName=x['channelName'] ,viewCount=x['count'])
             for x in genre_top_programs]
@@ -85,11 +101,38 @@ def genre_user_viewtime(week_ucis):
     table.rows = table_rows
     return table.as_dict()
 
+def midnight_favorites(week_ucis):
+    midnight_top_programs = midnight_favorite_programs(week_ucis)
+    table = Table()
+    table.title = "top programs in midnight"
+    table.subtitle = "programs most watched between 22:00 to 01:00"
+    table_rows = [
+        TableRow(title=x[0], viewCount=x[2])
+        for x in midnight_top_programs]
+    table.rows = table_rows
+    return table.as_dict()
+
+def run_discovery(week_ucis, month_ucis):
+    res = [
+        popular_uncompleted_channels(),
+        unpopular_completed_channels(),
+        midnight_favorites(week_ucis),
+        genre_user_viewtime(week_ucis),
+        genre_completion(week_ucis),
+        channel_completion(week_ucis),
+        channel_user_viewtime(week_ucis)
+    ]
+    res = res + run_gerne_discovery(month_ucis)
+    print res
+    r.db('telenortv_insight_api').table('discovery').insert(res, conflict='replace').run()
+    print "#"*10
+
+
 
 if __name__ == '__main__':
     dt = datetime(2017, 6, 27)
     spark_io = SparkParquetIO()
     week_ucis = spark_io.get_weekly_interactions(dt)
-    # month_ucis = spark_io.get_interactions(dt-timedelta(days=30), dt)
-    print genre_user_viewtime(week_ucis)
+    month_ucis = spark_io.get_interactions(dt-timedelta(days=30), dt)
+    run_discovery(week_ucis, month_ucis)
 
