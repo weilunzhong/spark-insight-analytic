@@ -2,12 +2,11 @@ from diagnostic.data_interface.input_data import SparkParquetIO
 from diagnostic.calculation.utils import *
 from pyspark.sql import functions as func
 from datetime import datetime
-from itertools import groupby as gb
 from functional import seq
 
 
 __all__ = [
-    'view_count', 'user_number', 'avg_user_viewtime',
+    'view_count', 'user_number', 'avg_user_viewtime', 'genre_number',
     'avg_user_view_count', 'avg_finished_program_by_user',
     'avg_completion_ratio', 'action_type_view_count',
     'user_hibernation', 'top_programs_by_view_count',
@@ -24,6 +23,12 @@ def view_count(df):
 def user_number(df):
     user_num = df.select('userID').distinct().count()
     return user_num
+
+def genre_number(df):
+    return df.filter(df.category.isNotNull())\
+        .groupBy(df.category)\
+        .count()\
+        .count()
 
 def avg_user_viewtime(df):
     # measured in minutes
@@ -72,7 +77,7 @@ def user_by_complete_views(df):
         .map(lambda (category, count_list): (category, sum([x[1] for x in count_list])))\
         .order_by(lambda (category, count): category)\
         .map(lambda(category, count):
-            {"category": counter_mapper_doc[category], "count": count}
+            (counter_mapper_doc[category], count)
         )\
         .to_list()
     return res
@@ -90,7 +95,7 @@ def user_by_viewtime(df, interval):
         .map(lambda (category, users): (category, len(users)))\
         .order_by(lambda (category, count): category)\
         .map(lambda (category, count):
-                {"category": viewtime_mapper_doc[category], "count": count}
+                (viewtime_mapper_doc[category], count)
         )\
         .to_list()
     return user_viewtime
@@ -99,6 +104,7 @@ def user_by_viewtime(df, interval):
 def top_tag_by_view_count(df, tag_name, row_limit=10):
     top_tag = df\
         .select(tag_name)\
+        .filter(df[tag_name].isNotNull())\
         .groupBy(tag_name)\
         .count()\
         .orderBy(func.desc('count'))\
@@ -106,20 +112,21 @@ def top_tag_by_view_count(df, tag_name, row_limit=10):
         .rdd\
         .collect()
     top_tag = [
-        {tag_name: x[tag_name], "count": x['count']}
+        (x[tag_name], x['count'])
         for x in top_tag]
     return top_tag
 
 def top_tag_by_total_viewtime(df, tag_name, row_limit=10):
     top_tag = df\
         .select(tag_name, 'duration')\
+        .filter(df[tag_name].isNotNull())\
         .groupBy(tag_name)\
         .agg(func.sum('duration'))\
         .sort(func.desc('sum(duration)'))\
         .limit(row_limit)\
         .rdd.collect()
     top_tag = [
-        {tag_name: x[tag_name], "viewtime": x['sum(duration)'] / 60}
+        (x[tag_name], x['sum(duration)'] / 60)
         for x in top_tag]
     return top_tag
 
@@ -137,15 +144,16 @@ def top_tag_by_completion_ratio(df, tag_name, row_limit=10, tag_count_limit=100)
         .count()\
         .collect()
     res = [
-        {
-            tag_name: x[tag_name],
-            'contentCompletion': float_devision(x['count'], tag_by_views[x[tag_name]])
-        } for x in tag_by_finished_views if x['count'] > tag_count_limit
+        (
+            x[tag_name],
+            float_devision(x['count'], tag_by_views[x[tag_name]])
+        ) for x in tag_by_finished_views if x['count'] > tag_count_limit
     ]
-    return sorted(res, key=lambda x: x['contentCompletion'], reverse=True)[:row_limit]
+    return sorted(res, key=lambda x: x[1], reverse=True)[:row_limit]
 
 def top_tag_by_user_viewtime(df, tag_name, row_limit=10):
     top_channel = df\
+        .filter(df[tag_name].isNotNull())\
         .groupBy('userID', tag_name)\
         .sum('duration')\
         .groupBy(tag_name)\
@@ -154,22 +162,23 @@ def top_tag_by_user_viewtime(df, tag_name, row_limit=10):
         .limit(row_limit)\
         .rdd.collect()
     top_channel = [
-        {tag_name: x[tag_name], "viewtime": x['avg(sum(duration))'] / 60}
+        (x[tag_name], x['avg(sum(duration))'] / 60)
         for x in top_channel]
     return top_channel
 
 def top_programs_by_view_count(df, row_limit=10):
     top_programs = df\
         .filter(df.title.isNotNull())\
-        .select('title', 'channelName')\
-        .groupBy('channelName', 'title')\
+        .select('title', 'channelName', 'channelID')\
+        .groupBy('channelName', 'title', 'channelID')\
         .count()\
         .orderBy(func.desc('count'))\
         .limit(row_limit)\
         .rdd\
         .collect()
     top_programs = [
-        {"title": x['title'], "channelName": x['channelName'], "count": x['count']}
+        {"title": x['title'], "channelName": x['channelName'],
+         "channelID": x['channelID'], "viewCount": x['count']}
         for x in top_programs]
     return top_programs
 
@@ -181,7 +190,7 @@ def action_type_view_count(df):
         .orderBy(func.desc('count'))\
         .rdd.collect()
     action_type = [
-        {"actionType": x['actionType'], "count": x['count']}
+        (x['actionType'], x['count'])
         for x in action_type]
     return action_type
 
@@ -191,9 +200,9 @@ def view_count_by_hour_of_day(df):
         .count()\
         .sort('hour')\
         .collect()
-    hourly_bucket = [{'hour':x, 'count': 0} for x in range(24)]
+    hourly_bucket = [(x, 0) for x in range(24)]
     for d in hour_of_day:
-        hourly_bucket[d['hour']]['count'] = d['count']
+        hourly_bucket[d['hour']] = (d['hour'], d['count'])
     return hourly_bucket
 
 def view_count_by_day_of_week(df):
@@ -204,7 +213,7 @@ def view_count_by_day_of_week(df):
     week_bucket = {x: 0 for x in WEEKDAYS}
     for d in day_of_week:
         week_bucket[d['weekday']] = d['count']
-    day_of_week = [{'weekday': x, 'count': week_bucket[x]} for x in WEEKDAYS]
+    day_of_week = [(x, week_bucket[x]) for x in WEEKDAYS]
     return day_of_week
 
 def user_hibernation(df, pre_df):
@@ -238,5 +247,5 @@ if __name__ == '__main__':
     from datetime import timedelta
     timestamp = datetime(2017, 6, 13)
     spark_io = SparkParquetIO()
-    week_ucis = spark_io.get_weekly_interactions(timestamp)
-    print midnight_favorite_programs(week_ucis)
+    week_ucis = spark_io.get_daily_interactions(timestamp)
+    print top_programs_by_view_count(week_ucis)

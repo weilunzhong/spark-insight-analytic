@@ -1,14 +1,51 @@
-
+from pymongo import MongoClient
 WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+
+"""
+def build_user_package():
+    d = {}
+    with open('/media/vionlabs/logs/telenor_log/TV/user_package/CHANNELPACKAGE_per_MSMW_SUB_list_2017-06-17.txt', 'r') as f:
+        for line in f:
+            user_id, package = line.split(';')
+            if user_id in d:
+                d[user_id].append(package)
+            else:
+                d[user_id] = [package]
+    return d
+
+def get_package(user_dict):
+    package_info = dict()
+    for user in user_dict:
+        if any(['T3' in x for x in user_dict[user]]):
+            package_info[user] = {'basicPackage': 'T3', 'additionalPackage': []}
+        elif any(['T2' in x for x in user_dict[user]]):
+            package_info[user] = {'basicPackage': 'T2', 'additionalPackage': []}
+        else:
+            package_info[user] = {'basicPackage': 'T1', 'additionalPackage': []}
+        if any([('VIASAT' in x and 'VIASAT_B' not in x) for x in user_dict[user]]):
+            package_info[user]['additionalPackage'].append('VIASAT')
+        if any(['CMORE' in x for x in user_dict[user]]):
+            package_info[user]['additionalPackage'].append('CMORE')
+    return  package_info
+
+def user_to_basic_package(user_id):
+    pass
+"""
+
+def title_count_for_genre(genre):
+    col = MongoClient().telenor.epg
+    return col.find({"category.value": genre}).count()
+
+def total_title_count():
+    col = MongoClient().telenor.epg
+    return col.find({}).count()
 
 def float_devision(numerator, denominator):
     return float(numerator) / denominator if denominator != 0 else 0
 
-def normalize(list_dicts, value_sum, field_name):
-    def change_value(x):
-        x['percentage'] = x.pop(field_name) / float(value_sum)
-        return x
-    return [change_value(x) for x in list_dicts]
+def normalize(list_tuples, value_sum):
+    return [(x[0], float_devision(x[1], value_sum)) for x in list_tuples]
 
 def ucis_completion_ratio(ucis):
     return len([x for x in ucis if finished(x['duration'], x['runtime'])]) / float(len(ucis))
@@ -24,29 +61,29 @@ def user_viewtime(ucis):
     return sum([x['duration'] for x in ucis]) / float(user_num)
 
 counter_mapper_doc = {
-    -1: 'less than 5',
-    0: 'less than 10',
-    1: 'less than 20',
-    2: 'less than 30',
-    3: 'less than 40',
-    4: 'less than 50',
-    5: 'less than 60',
+    -1: '5',
+    0: '10',
+    1: '20',
+    2: '30',
+    3: '40',
+    4: '50',
+    5: '60',
     6: 'more than 60'
 }
 
 viewtime_mapper_doc = {
-    -1: 'less than 1 hour',
-    0: 'less than 2 hours',
-    1: 'less than 4 hours',
-    2: 'less than 6 hours',
-    3: 'less than 8 hours',
-    4: 'less than 10 hours',
-    5: 'less than 12 hours',
-    6: 'less than 14 hours',
-    7: 'less than 16 hours',
-    8: 'less than 18 hours',
-    9: 'less than 20 hours',
-    10: 'more than 20 hours'
+    -1: '1 h',
+    0: '2 h',
+    1: '4 h',
+    2: '6 h',
+    3: '8 h',
+    4: '10 h',
+    5: '12 h',
+    6: '14 h',
+    7: '16 h',
+    8: '18 h',
+    9: '20 h',
+    10: 'more than 20 h'
 }
 
 def viewtime_mapper(viewtime):

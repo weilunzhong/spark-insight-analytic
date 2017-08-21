@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 
 
 # change this to os.genenv('PARQUET_PATH') for container usage
-PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/telenor/parquet/{0}.parquet'
+UCI_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/telenor/parquet/{0}.parquet'
+USER_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/telenor/parquet/new_user.parquet'
 WAREHOUSE_DIR = '/home/vionlabs/Documents/vionlabs_data/insight_data/warehouse/'
 UCI_START_DATE = datetime(2016, 12, 4)
 UCI_END_DATE = datetime(2017, 6, 28)
@@ -39,6 +40,9 @@ class SparkParquetIO(object):
         sqlContext = SQLContext(self.spark.sparkContext)
         return sqlContext.createDataFrame([],interaction_schema)
 
+    def get_users(self):
+        return self.spark.read.parquet(USER_PATH)
+
     def _load_parquet(self, path_list):
         """Load parquet files into dataframes
 
@@ -47,7 +51,7 @@ class SparkParquetIO(object):
             exampel:
             ["2017-01", "2107-08"]
         """
-        data_frames = [self.spark.read.parquet(PATH.format(x)) for x in path_list]
+        data_frames = [self.spark.read.parquet(UCI_PATH.format(x)) for x in path_list]
         return reduce(lambda a, b: a.union(b), data_frames)
 
     def get_interactions(self, dt_start, dt_end, cols='*'):
@@ -80,6 +84,9 @@ class SparkParquetIO(object):
             )\
             .select(cols)
         return df
+
+    def get_all_interactions(self, cols='*'):
+        return self.get_interactions(UCI_START_DATE, UCI_END_DATE, cols=cols)
 
     def get_filtered_interactions(self, dt_start, dt_end, query, cols='*'):
         """Fetch interactions with with query
