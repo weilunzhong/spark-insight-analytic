@@ -43,7 +43,7 @@ def channel_overview(dt, week_ucis, channel_id):
     print "#"*10
     print channel_id
     print res
-    r.db('telenortv_insight_api').table('channel_overview').insert([res]).run()
+    # r.db('telenortv_insight_api').table('channel_overview').insert([res]).run()
     print "#"*10
 
 
@@ -51,7 +51,8 @@ def channel_overview(dt, week_ucis, channel_id):
 def channel_overview_trigger(dt):
     spark_io = SparkParquetIO()
     week_ucis = spark_io.get_weekly_interactions(dt)
-    for channel_id in channel_ids:
+    # for channel_id in channel_ids:
+    for channel_id in ['eid25']:
         channel_ucis = channel_overview(
             dt,
             week_ucis.filter(week_ucis.channelID==channel_id),

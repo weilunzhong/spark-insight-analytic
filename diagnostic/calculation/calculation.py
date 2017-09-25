@@ -14,7 +14,7 @@ __all__ = [
     'view_count_by_hour_of_day', 'view_count_by_day_of_week',
     'top_tag_by_user_viewtime', 'user_by_complete_views',
     'user_by_viewtime', 'top_tag_by_completion_ratio',
-    'midnight_favorite_programs'
+    'midnight_favorite_programs', 'top_programs_by_viewtime'
 ]
 
 def view_count(df):
@@ -132,12 +132,14 @@ def top_tag_by_total_viewtime(df, tag_name, row_limit=10):
 
 def top_tag_by_completion_ratio(df, tag_name, row_limit=10, tag_count_limit=100):
     tag_by_views = df\
+        .filter(df[tag_name].isNotNull())\
         .filter(df.runtime.isNotNull())\
         .groupBy(tag_name)\
         .count()\
         .rdd\
         .collectAsMap()
     tag_by_finished_views = df\
+        .filter(df[tag_name].isNotNull())\
         .filter(df.runtime.isNotNull())\
         .filter(finished(df.duration, df.runtime))\
         .groupBy(tag_name)\
@@ -227,7 +229,7 @@ def user_hibernation(df, pre_df):
 def midnight_favorite_programs(df):
     midnight_favorites = df\
         .filter(df.title.isNotNull())\
-        .groupBy(df.title, df.channelName, func.hour('firstEvent').alias('hour'))\
+        .groupBy(df.title, df.channelID, df.channelName, func.hour('firstEvent').alias('hour'))\
         .count()\
         .collect()
 
@@ -235,17 +237,34 @@ def midnight_favorite_programs(df):
         .filter(lambda x: x['hour'] <1 or x['hour']>21)\
         .group_by(lambda x: x['title'])\
         .map(lambda (title, title_buckets):
-            (title, set([x['channelName'] for x in title_buckets]),
-                sum([x['count'] for x in title_buckets])))\
-        .order_by(lambda (title, name, count): -count)\
+            (title, title_buckets[0]['channelName'],
+                title_buckets[0]['channelID'], sum([x['count'] for x in title_buckets])))\
+        .order_by(lambda (title, name, c_id, count): -count)\
         .to_list()
 
     return res[:10]
 
+def top_programs_by_viewtime(df, row_limit=10):
+    top_tag = df\
+        .select('title', 'channelID', 'duration')\
+        .filter(df['title'].isNotNull())\
+        .groupBy('title', 'channelID')\
+        .agg(func.sum('duration'))\
+        .sort(func.desc('sum(duration)'))\
+        .limit(row_limit)\
+        .rdd.collect()
+    top_tag = [
+        (x['title'], x['channelID'], x['sum(duration)'] / 60)
+        for x in top_tag]
+    return top_tag
+
 
 if __name__ == '__main__':
     from datetime import timedelta
-    timestamp = datetime(2017, 6, 13)
+    timestamp = datetime(2017, 8, 25)
     spark_io = SparkParquetIO()
-    week_ucis = spark_io.get_daily_interactions(timestamp)
-    print top_programs_by_view_count(week_ucis)
+    week_ucis = spark_io.get_weekly_interactions(timestamp)
+    res = week_ucis\
+        .filter(week_ucis.title=='Vikings')\
+        .show()
+

@@ -85,14 +85,8 @@ def run_vod_kpis(ucis, view_type):
 if __name__ == '__main__':
     dt_start = datetime(2016, 12, 10)
     dt_end = datetime(2017, 6, 27)
-    view_type = 'tvod'
+    view_type = 'svod'
     spark_io = SparkParquetIO()
     vod_ucis = spark_io.get_all_interactions()
     vod_ucis = vod_ucis.filter(vod_ucis.actionType==view_type)
-    # week_ucis = vod_ucis.filter(
-    #     (dt_end-timedelta(days=6) < vod_ucis.firstEvent) & (vod_ucis.firstEvent <dt_end+timedelta(days=1))
-    # )
-    # week_ago_ucis = vod_ucis.filter(
-    #     (dt_end-timedelta(days=13) < vod_ucis.firstEvent) & (vod_ucis.firstEvent <dt_end-timedelta(days=6))
-    # )
     run_vod_kpis(vod_ucis, view_type)

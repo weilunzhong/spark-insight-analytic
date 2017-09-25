@@ -6,11 +6,22 @@ from datetime import datetime, timedelta
 
 
 # change this to os.genenv('PARQUET_PATH') for container usage
+
+"""
+# parameters for telenor
 UCI_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/telenor/parquet/{0}.parquet'
-USER_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/telenor/parquet/new_user.parquet'
-WAREHOUSE_DIR = '/home/vionlabs/Documents/vionlabs_data/insight_data/warehouse/'
 UCI_START_DATE = datetime(2016, 12, 4)
 UCI_END_DATE = datetime(2017, 6, 28)
+USER_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/telenor/parquet/new_user.parquet'
+"""
+# parameters for gettv
+# UCI_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/gettv/parquet/{0}.parquet'
+UCI_PATH = '/media/vionlabs/logs/gettv/parquet/{0}.parquet'
+UCI_START_DATE = datetime(2017, 4, 1)
+UCI_END_DATE = datetime(2017, 9, 7)
+USER_PATH = '/home/vionlabs/Documents/vionlabs_data/insight_data/gettv/parquet/new_user.parquet'
+
+WAREHOUSE_DIR = '/home/vionlabs/Documents/vionlabs_data/insight_data/warehouse/'
 
 # specify the schema to aviod scan all lines of file
 interaction_schema = StructType([
@@ -100,7 +111,7 @@ class SparkParquetIO(object):
         Returns:
             a data frame with all interactions that satisfy the query
         """
-        df = self.get_interactions(dt_start, dt_end, cols)
+        df = self.get_interactions(dt_start, dt_end, cols=cols)
         return df.filter(query)
 
     def get_daily_interactions(self, dt, cols='*'):

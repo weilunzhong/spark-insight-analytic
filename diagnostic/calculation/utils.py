@@ -2,7 +2,6 @@ from pymongo import MongoClient
 WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 
-"""
 def build_user_package():
     d = {}
     with open('/media/vionlabs/logs/telenor_log/TV/user_package/CHANNELPACKAGE_per_MSMW_SUB_list_2017-06-17.txt', 'r') as f:
@@ -18,20 +17,31 @@ def get_package(user_dict):
     package_info = dict()
     for user in user_dict:
         if any(['T3' in x for x in user_dict[user]]):
-            package_info[user] = {'basicPackage': 'T3', 'additionalPackage': []}
+            package_info[user] = {'basicPackage': 'T3', 'additionalPackage': 'None'}
         elif any(['T2' in x for x in user_dict[user]]):
-            package_info[user] = {'basicPackage': 'T2', 'additionalPackage': []}
+            package_info[user] = {'basicPackage': 'T2', 'additionalPackage': 'None'}
         else:
-            package_info[user] = {'basicPackage': 'T1', 'additionalPackage': []}
+            package_info[user] = {'basicPackage': 'T1', 'additionalPackage': 'None'}
         if any([('VIASAT' in x and 'VIASAT_B' not in x) for x in user_dict[user]]):
-            package_info[user]['additionalPackage'].append('VIASAT')
+            package_info[user]['additionalPackage'] = 'VIASAT'
         if any(['CMORE' in x for x in user_dict[user]]):
-            package_info[user]['additionalPackage'].append('CMORE')
+            if package_info[user]['additionalPackage'] == 'VIASAT':
+                package_info[user]['additionalPackage'] = 'VIASAT & CMORE'
+            else:
+                package_info[user]['additionalPackage'] = 'CMORE'
     return  package_info
 
-def user_to_basic_package(user_id):
-    pass
-"""
+def user_to_basic_package(user_id, package_info):
+    if user_id in package_info:
+        return package_info[user_id]['basicPackage']
+    else:
+        return 'T1'
+
+def user_to_additional_package(user_id, package_info):
+    if user_id in package_info:
+        return package_info[user_id]['additionalPackage']
+    else:
+        return 'None'
 
 def title_count_for_genre(genre):
     col = MongoClient().telenor.epg
@@ -56,6 +66,7 @@ def duration_mapper(duration):
 def finished(duration, runtime):
     # NOTE completion is defined as 90% finished
     return duration > 0.9 * runtime
+
 def user_viewtime(ucis):
     user_num = len(set([x['userID'] for x in ucis]))
     return sum([x['duration'] for x in ucis]) / float(user_num)

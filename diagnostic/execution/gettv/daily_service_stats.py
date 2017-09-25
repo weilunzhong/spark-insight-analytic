@@ -14,6 +14,9 @@ r.connect(host=RDB_HOST, port=RDB_PORT).repl()
 spark_io = SparkParquetIO()
 
 
+def calculate_sum(data):
+    return sum([x[1] for x in data])
+
 def run_daily_kpis(timestamp, users):
     daily_ucis = spark_io.get_daily_interactions(timestamp)
     date_string = timestamp.strftime('%Y-%m-%d')
@@ -24,8 +27,8 @@ def run_daily_kpis(timestamp, users):
     complete_views = avg_finished_program_by_user(daily_ucis)
     completion_ratio = avg_completion_ratio(daily_ucis)
     daily_top_program = top_programs_by_view_count(daily_ucis, 10)
-    daily_top_genre = normalize(top_tag_by_view_count(daily_ucis, 'category', 10), started_views)
-    daily_top_channel = normalize(top_tag_by_view_count(daily_ucis, 'channelName', 10), started_views)
+    genre = top_tag_by_view_count(daily_ucis, 'category', 10)
+    daily_top_genre = normalize(genre, calculate_sum(genre))
     week_ucis = spark_io.get_weekly_interactions(timestamp)
     last_week_ucis = spark_io.get_weekly_interactions(timestamp - timedelta(days=7))
     weekly_hibernation = user_hibernation(week_ucis, last_week_ucis)
@@ -45,10 +48,9 @@ def run_daily_kpis(timestamp, users):
         "user-hibernation": weekly_hibernation,
         "top-programs": daily_top_program,
         "top-genres": daily_top_genre,
-        "top-channels": daily_top_channel
     }
     print res
-    r.db('telenortv_insight_api')\
+    r.db('gettv_insight_api')\
         .table('by_day')\
         .insert([res], conflict='replace').run()
     print date_string
@@ -62,7 +64,7 @@ def daily_trigger(start_date, end_date):
         dt += timedelta(days=1)
 
 if __name__ == '__main__':
-    dt_start = datetime(2016, 12, 10)
-    dt_end = datetime(2017, 6, 27)
+    dt_start = datetime(2017, 8, 31)
+    dt_end = datetime(2017, 8, 31)
     daily_trigger(dt_start, dt_end)
 

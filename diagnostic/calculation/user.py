@@ -2,14 +2,15 @@ from diagnostic.data_interface.input_data import SparkParquetIO
 from diagnostic.calculation.utils import *
 from diagnostic.calculation.utils import normalize
 from pyspark.sql import functions as func
-from pyspark.sql.types import BooleanType
+from pyspark.sql.types import BooleanType, StringType
 from datetime import datetime, timedelta
 from functional import seq
 
 
 __all__ = [
     'weekly_new_user', 'unique_user',
-    'users_package_overview', 'basic_additional_package_overview'
+    'users_package_overview', 'basic_additional_package_overview',
+    'basic_package_user_viewing_time', 'primeium_package_user_viewing_time'
 ]
 spark_io = SparkParquetIO()
 
@@ -96,12 +97,33 @@ def primeium_packages(df):
         .groupBy(df.additionalPackage)\
         .count()\
         .show()
+def basic_package_user_viewing_time(df):
+    package_info = get_package(build_user_package())
+    package_udf = func.udf(lambda x: user_to_basic_package(x, package_info), StringType())
+    packages = df\
+        .groupBy(df.userID, package_udf(df.userID))\
+        .sum('duration')\
+        .groupBy(package_udf(df.userID))\
+        .avg('sum(duration)')\
+        .collect()
+    viewing_time_dict =  {x['<lambda>(userID)']: x['avg(sum(duration))'] / 60 for x in packages}
+    return [(x, viewing_time_dict[x]) for x in ["T1", "T2", "T3"]]
+
+def primeium_package_user_viewing_time(df):
+    package_info = get_package(build_user_package())
+    package_udf = func.udf(lambda x: user_to_additional_package(x, package_info), StringType())
+    packages = df\
+        .groupBy(df.userID, package_udf(df.userID))\
+        .sum('duration')\
+        .groupBy(package_udf(df.userID))\
+        .avg('sum(duration)')\
+        .collect()
+    viewing_time_dict =  {x['<lambda>(userID)']: x['avg(sum(duration))'] / 60 for x in packages}
+    return [(x, viewing_time_dict[x]) for x in ["None", "VIASAT", "CMORE", "VIASAT & CMORE"]]
 
 
 if __name__ == '__main__':
-    # timestamp = datetime(2017, 6, 13)
-    # spark_io = SparkParquetIO()
-    # users = spark_io.get_users()
-    # ucis = spark_io.get_daily_interactions(timestamp)
-    # users_package_overview(ucis, users)
-    basic_additional_package_overview()
+    timestamp = datetime(2017, 6, 13)
+    spark_io = SparkParquetIO()
+    ucis = spark_io.get_weekly_interactions(timestamp)
+    basic_package_user_viewing_time(ucis)
