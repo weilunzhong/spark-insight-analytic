@@ -1,55 +1,7 @@
 from pymongo import MongoClient
+
 WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-
-def build_user_package():
-    d = {}
-    with open('/media/vionlabs/logs/telenor_log/TV/user_package/CHANNELPACKAGE_per_MSMW_SUB_list_2017-06-17.txt', 'r') as f:
-        for line in f:
-            user_id, package = line.split(';')
-            if user_id in d:
-                d[user_id].append(package)
-            else:
-                d[user_id] = [package]
-    return d
-
-def get_package(user_dict):
-    package_info = dict()
-    for user in user_dict:
-        if any(['T3' in x for x in user_dict[user]]):
-            package_info[user] = {'basicPackage': 'T3', 'additionalPackage': 'None'}
-        elif any(['T2' in x for x in user_dict[user]]):
-            package_info[user] = {'basicPackage': 'T2', 'additionalPackage': 'None'}
-        else:
-            package_info[user] = {'basicPackage': 'T1', 'additionalPackage': 'None'}
-        if any([('VIASAT' in x and 'VIASAT_B' not in x) for x in user_dict[user]]):
-            package_info[user]['additionalPackage'] = 'VIASAT'
-        if any(['CMORE' in x for x in user_dict[user]]):
-            if package_info[user]['additionalPackage'] == 'VIASAT':
-                package_info[user]['additionalPackage'] = 'VIASAT & CMORE'
-            else:
-                package_info[user]['additionalPackage'] = 'CMORE'
-    return  package_info
-
-def user_to_basic_package(user_id, package_info):
-    if user_id in package_info:
-        return package_info[user_id]['basicPackage']
-    else:
-        return 'T1'
-
-def user_to_additional_package(user_id, package_info):
-    if user_id in package_info:
-        return package_info[user_id]['additionalPackage']
-    else:
-        return 'None'
-
-def title_count_for_genre(genre):
-    col = MongoClient().telenor.epg
-    return col.find({"category.value": genre}).count()
-
-def total_title_count():
-    col = MongoClient().telenor.epg
-    return col.find({}).count()
 
 def float_devision(numerator, denominator):
     return float(numerator) / denominator if denominator != 0 else 0
@@ -112,3 +64,55 @@ def program_count_mapper(x):
         return 6
     else:
         return x / 10
+
+# NOTE deprecated after version 0.1
+def build_user_package():
+    d = {}
+    with open('/media/vionlabs/logs/telenor_log/TV/user_package/CHANNELPACKAGE_per_MSMW_SUB_list_2017-06-17.txt', 'r') as f:
+        for line in f:
+            user_id, package = line.split(';')
+            if user_id in d:
+                d[user_id].append(package)
+            else:
+                d[user_id] = [package]
+    return d
+
+# package info in given by providers and this will need to be implemented differently
+def get_package(user_dict):
+    package_info = dict()
+    for user in user_dict:
+        if any(['T3' in x for x in user_dict[user]]):
+            package_info[user] = {'basicPackage': 'T3', 'additionalPackage': 'None'}
+        elif any(['T2' in x for x in user_dict[user]]):
+            package_info[user] = {'basicPackage': 'T2', 'additionalPackage': 'None'}
+        else:
+            package_info[user] = {'basicPackage': 'T1', 'additionalPackage': 'None'}
+        if any([('VIASAT' in x and 'VIASAT_B' not in x) for x in user_dict[user]]):
+            package_info[user]['additionalPackage'] = 'VIASAT'
+        if any(['CMORE' in x for x in user_dict[user]]):
+            if package_info[user]['additionalPackage'] == 'VIASAT':
+                package_info[user]['additionalPackage'] = 'VIASAT & CMORE'
+            else:
+                package_info[user]['additionalPackage'] = 'CMORE'
+    return  package_info
+
+def user_to_basic_package(user_id, package_info):
+    if user_id in package_info:
+        return package_info[user_id]['basicPackage']
+    else:
+        return 'T1'
+
+def user_to_additional_package(user_id, package_info):
+    if user_id in package_info:
+        return package_info[user_id]['additionalPackage']
+    else:
+        return 'None'
+
+def title_count_for_genre(genre):
+    col = MongoClient().telenor.epg
+    return col.find({"category.value": genre}).count()
+
+def total_title_count():
+    col = MongoClient().telenor.epg
+    return col.find({}).count()
+

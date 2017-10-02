@@ -5,7 +5,7 @@ from pyspark.sql.functions import desc, array_contains
 from datetime import datetime, timedelta
 
 
-# change this to os.genenv('PARQUET_PATH') for container usage
+# NOTE change this to os.genenv('PARQUET_PATH') for container usage
 
 """
 # parameters for telenor
@@ -29,11 +29,17 @@ interaction_schema = StructType([
     StructField("category", StringType(), True),
     StructField("channelID", StringType(), True),
     StructField("channelName", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("contentType", StringType(), True),
+    StructField("device", StringType(), True),
     StructField("duration", LongType(), True),
+    StructField("season", LongType(), True),
+    StructField("episode", LongType(), True),
     StructField("firstEvent", TimestampType(), True),
     StructField("inventoryID", StringType(), True),
     StructField("runtime", LongType(), True),
     StructField("title", StringType(), True),
+    StructField("releaseYear", StringType(), True),
     StructField("userID", StringType(), True)])
 
 class SparkParquetIO(object):
@@ -97,6 +103,14 @@ class SparkParquetIO(object):
         return df
 
     def get_all_interactions(self, cols='*'):
+        """Fetch all interactions with with query
+
+        Args:
+            cols: a list of field names, default to all
+
+        Returns:
+            a data frame with all interactions, columns can be selected
+        """
         return self.get_interactions(UCI_START_DATE, UCI_END_DATE, cols=cols)
 
     def get_filtered_interactions(self, dt_start, dt_end, query, cols='*'):

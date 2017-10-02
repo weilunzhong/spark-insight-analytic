@@ -7,7 +7,8 @@ COPY . /code
 WORKDIR /code
 ENV RDB_HOST "192.168.1.124"
 ENV RDB_PORT 28015
+ENV  provider gettv # configure this in rancher!
 RUN pip install --index-url https://pypi.vionlabs.com:8080/pypi/ -r requirements.txt
 RUN pip install .
 
-WORKDIR /code/insightful/execute
+WORKDIR /diagnostic/executtion/${provider}
