@@ -29,11 +29,17 @@ interaction_schema = StructType([
     StructField("category", StringType(), True),
     StructField("channelID", StringType(), True),
     StructField("channelName", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("contentType", StringType(), True),
+    StructField("device", StringType(), True),
     StructField("duration", LongType(), True),
+    StructField("season", LongType(), True),
+    StructField("episode", LongType(), True),
     StructField("firstEvent", TimestampType(), True),
     StructField("inventoryID", StringType(), True),
     StructField("runtime", LongType(), True),
     StructField("title", StringType(), True),
+    StructField("releaseYear", StringType(), True),
     StructField("userID", StringType(), True)])
 
 class SparkParquetIO(object):
