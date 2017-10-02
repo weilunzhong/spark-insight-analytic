@@ -1,4 +1,4 @@
-# Insight Analytic(old carddeck)
+# Spark Insight Analytic
 
 ## Input data
 
