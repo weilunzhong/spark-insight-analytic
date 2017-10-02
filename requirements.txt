@@ -1,0 +1,5 @@
+vionbase
+vioncontent
+logsdk==0.1
+rethinkdb==2.3.0.post6
+pytz==2014.10
