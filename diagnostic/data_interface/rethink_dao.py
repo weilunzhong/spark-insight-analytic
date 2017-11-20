@@ -100,7 +100,9 @@ class RethinkDao(object):
             .between(start, end, index=index_name)\
             .count()\
             .run(self.rethink_client)
-
+    """
+    ### These two methods are deprecated due to the return size of the array is hitting limit of 100000
+    ### Also now RethinkDB is only for storing the serving layer, heavy-lifting like this is done by Spark
     def active_user_count_in_time_range(self,
             start=datetime(2000,1,1).replace(tzinfo=pytz.UTC),
             end=datetime.now().replace(tzinfo=pytz.UTC)):
@@ -125,6 +127,7 @@ class RethinkDao(object):
             .ungroup()\
             .map(lambda d: d['group'])\
             .run(self.rethink_client, array_limit=200000) #this aray limit could be avoided
+    """
 
     # this can do unique user count and new user count
     def new_user_count_in_time_range(self,

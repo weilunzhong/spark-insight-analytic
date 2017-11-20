@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 from functional import seq
 
 
+# scala like functional processing package is used
+
+# __all__ is defined for easy explicit import
 __all__ = [
     'weekly_new_user', 'unique_user',
     'users_package_overview', 'basic_additional_package_overview',
@@ -77,7 +80,8 @@ def users_package_overview(ucis):
 
     tag_users = set([x['userID'] for x in tag_users])
 
-    #defined udf for filter
+    # defined udf for filter
+    # if return if user is a tag user
     is_in_tag_user = func.udf(lambda x: x in tag_users, BooleanType())
 
     tag_user_packages = users\
@@ -91,6 +95,7 @@ def users_package_overview(ucis):
     return tag_user_packages_norm, user_packages_norm
 
 def primeium_packages(df):
+    # return if additional package is not empty
     is_not_empty = func.udf(lambda x: len(x) != 0, BooleanType())
     print df\
         .filter(is_not_empty(df.additionalPackage))\
@@ -99,6 +104,7 @@ def primeium_packages(df):
         .show()
 def basic_package_user_viewing_time(df):
     package_info = get_package(build_user_package())
+    # convert user to basic package(T1, T2, T3)
     package_udf = func.udf(lambda x: user_to_basic_package(x, package_info), StringType())
     packages = df\
         .groupBy(df.userID, package_udf(df.userID))\
@@ -111,6 +117,7 @@ def basic_package_user_viewing_time(df):
 
 def primeium_package_user_viewing_time(df):
     package_info = get_package(build_user_package())
+    # convert user to primeium packages(VIASAT, CMORE)
     package_udf = func.udf(lambda x: user_to_additional_package(x, package_info), StringType())
     packages = df\
         .groupBy(df.userID, package_udf(df.userID))\
